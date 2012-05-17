@@ -180,6 +180,8 @@ module Astoria
       disable :show_exceptions
       disable :dump_errors
 
+      use(Astoria::OAuth2::BearerTokenMiddleware)
+
       not_found do
         status(404)
         set_resource(errors_resource('Route not found'))
