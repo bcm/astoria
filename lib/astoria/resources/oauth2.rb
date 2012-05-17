@@ -7,19 +7,22 @@ module Astoria
       extend ActiveSupport::Concern
       include Astoria::OAuth2::ErrorMethods
 
-      def require_oauth_token
+      def require_oauth_token(options = {})
         @current_token = request.env[Rack::OAuth2::Server::Resource::ACCESS_TOKEN]
         unauthorized! unless @current_token
+        if options[:authenticate]
+          invalid_token! unless options[:authenticate].call(current_token)
+        end
       end
 
-      def current_token
-        @current_token
+      included do
+        attr_reader :current_token
       end
 
       module ClassMethods
-        def require_oauth_token
+        def require_oauth_token(options = {})
           before do
-            require_oauth_token
+            require_oauth_token(options)
           end
         end
       end
