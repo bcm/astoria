@@ -1,4 +1,5 @@
 module Astoria
-  autoload :Service, 'astoria/service'
+  autoload :Logging, 'astoria/logging'
   autoload :OAuth2, 'astoria/oauth2'
+  autoload :Service, 'astoria/service'
 end

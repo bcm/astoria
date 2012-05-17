@@ -1,4 +1,3 @@
-require 'astoria/logging'
 require 'sequel'
 
 module Astoria

@@ -1,6 +1,5 @@
 require 'active_support/benchmarkable'
 require 'active_support/concern'
-require 'astoria/logging'
 require 'astoria/resources/oauth2'
 require 'astoria/resources/url_builder'
 require 'yajl'

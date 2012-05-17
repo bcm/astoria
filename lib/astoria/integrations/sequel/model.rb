@@ -1,5 +1,4 @@
 require 'active_support/concern'
-require 'astoria/logging'
 
 module Astoria
   module Integrations
