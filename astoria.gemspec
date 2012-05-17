@@ -27,6 +27,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency('addressable')
   s.add_runtime_dependency('log_weasel', '>= 0.1.0')
   s.add_runtime_dependency('rack-oauth2')
+  s.add_runtime_dependency('rack-routes')
   s.add_runtime_dependency('sequel')
   s.add_runtime_dependency('sinatra')
   s.add_runtime_dependency('yajl-ruby')
