@@ -1,7 +1,5 @@
-require 'rack/builder'
-
 module Astoria
-  class Service < Rack::Builder
+  class Service < SimpleDelegator
     include Astoria::Logging
 
     def initialize!
