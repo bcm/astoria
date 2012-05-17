@@ -9,6 +9,14 @@ module Astoria
     mattr_accessor :realm
     @@realm = 'OAuth2 Protected Resource'
 
+    class BearerTokenMiddleware < Rack::OAuth2::Server::Resource::Bearer
+      def initialize(app)
+        super(app, Astoria::OAuth2.realm) do |req|
+          req.access_token
+        end
+      end
+    end
+
     class Error < StandardError
       attr_reader :headers, :wrapped
       delegate :status, :scheme, :realm, :error, :description, :uri, :protocol_params, to: :wrapped
