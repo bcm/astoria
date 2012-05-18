@@ -9,14 +9,6 @@ module Astoria
     include Astoria::Logging
     include Astoria::Resources::OAuth2
 
-    # Returns a resource providing a consistent structure for error information.
-    #
-    # @param [Object] errors an object describing the error condition(s)
-    # @return [Hash]
-    def errors_resource(errors)
-      {errors: errors}
-    end
-
     # Returns any grouped query ids that were provided in the named request parameter as a semicolon-delimited list
     # of integers.
     #
@@ -30,9 +22,7 @@ module Astoria
           begin
             m << Integer(v)
           rescue ArgumentError
-            status(400)
-            set_resource(errors_resource({param_name => "Bad query id value #{v}"}))
-            halt
+            fail 400, {param_name => "Bad query id value #{v}"}
           end
         end
       end
@@ -164,6 +154,11 @@ module Astoria
       body(content)
     end
 
+    def fail(code, errors)
+      set_body(Astoria::Errors.new(errors))
+      halt code
+    end
+
     included do
       disable :show_exceptions
       disable :dump_errors
@@ -186,18 +181,15 @@ module Astoria
       end
 
       not_found do
-        status(404)
-        set_resource(errors_resource('Route not found'))
-        halt(response.finish)
+        set_body(Astoria::Errors.new('Route not found')) unless body
       end
 
       error do
         error = env['sinatra.error'] || 'Unknown error'
         status(error.respond_to?(:status) ? error.status : 500)
         error.headers.each { |key, val| headers[key] = val } if error.respond_to?(:headers)
-        set_resource(error.respond_to?(:resource) ? error.resource : errors_resource(error))
+        set_body(error.respond_to?(:resource) ? error.resource : Astoria::Errors.new(error))
         dump_errors!(error) if status == 500
-        halt(response.finish)
       end
     end
   end
