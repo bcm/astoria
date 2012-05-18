@@ -1,72 +1,13 @@
-require 'active_support/benchmarkable'
-require 'active_support/concern'
+require 'astoria/content'
 require 'astoria/resources/oauth2'
 require 'astoria/resources/url_builder'
 require 'yajl'
 
 module Astoria
   module Resource
-    include ActiveSupport::Benchmarkable
     extend ActiveSupport::Concern
     include Astoria::Logging
     include Astoria::Resources::OAuth2
-
-    # Computes a resource and returns a response for the request.
-    #
-    # Meant to be used in the context of a Sinatra route handler, like so:
-    #
-    #     get '/foo' do
-    #       respond { {bar: :baz} }
-    #     end
-    #
-    # Expects the provided block to return either a two-element array containing a custom status and the resource,
-    # or just the resource itself (if the default status for the request method should be used). The block should also
-    # set any custom request headers via the Sinatra +headers+ method.
-    #
-    # If no +representation_+ option is specified, +:json+ is assumed, and the provided resource is serialized to JSON.
-    #
-    # @param [Hash] options
-    # @option options [Symbol] :representation (:json) the representation to be used for the computed response, as a
-    #   Sinatra +mime_type+ value (eg :json, :html, :txt)
-    # @return [Array] the response status and resource
-    def respond(options = {}, &block)
-      rv = benchmark("Respond", level: :debug, &block)
-      (status, resource) = if rv.is_a?(Array)
-        rv.slice(0, 2)
-      else
-        [nil, rv]
-      end
-      status = options[:status] || (if request.get? || request.head?
-        resource.nil?? 404 : 200
-      elsif request.put?
-        201
-      elsif request.delete?
-        204
-      else
-        405
-      end)
-      status(status)
-      set_resource(resource, options)
-    end
-
-    def set_resource(resource, options = {})
-      representation = options.fetch(:representation, :json)
-      content_type(representation)
-      if resource
-        content = if representation == :json
-          if resource.respond_to?(:to_serializable_hash)
-            Yajl::Encoder.encode(resource.to_serializable_hash)
-          else
-            Yajl::Encoder.encode(resource)
-          end
-        elsif representation == :txt
-          resource.to_s
-        else
-          raise "Unsupported representation #{representation}"
-        end
-        body(content)
-      end
-    end
 
     # Returns a resource providing a consistent structure for error information.
     #
@@ -149,7 +90,7 @@ module Astoria
     #
     #     class FooResource
     #       get '/:id/bar/*' do
-    #         delegate_to_subresource BarResource, prefix: "/#{params[:id]}"
+    #         subresource BarResource, prefix: "/#{params[:id]}"
     #       end
     #     end
     #
@@ -162,7 +103,7 @@ module Astoria
     # @param [Class] subresource_class
     # @param [Hash] options
     # @option options [String] :prefix ('/') a string to prepend to the splatted path
-    def delegate_to_subresource(subresource_class, options = {})
+    def subresource(subresource_class, options = {})
       prefix = options.fetch(:prefix, '/')
       splat = params[:splat].first ? "/#{params[:splat].first}" : ''
       path_info = "#{prefix}#{splat}"
@@ -172,7 +113,55 @@ module Astoria
     end
 
     def url_builder
-      UrlBuilder.new(self.url)
+      @url_builder ||= UrlBuilder.new(self.url)
+    end
+
+    def count_query(count, options = {})
+      set_resource(Astoria::CountQuery.new(count, url_builder, options))
+    end
+
+    def entity(ent, options = {})
+      set_resource(Astoria::Entity.new(ent, url_builder, options))
+    end
+
+    def grouped_query(ids, group, options = {})
+      set_resource(Astoria::GroupedQuery.new(ids, group, url_builder, options))
+    end
+
+    def paged_query(paged_array, options = {})
+      set_resource(Astoria::PagedQuery.new(paged_array, url_builder, options))
+    end
+
+    def set_resource(resource)
+      env['astoria.resource'] = resource
+    end
+
+    def set_status(resource)
+      code = if request.get? || request.head?
+        resource.nil?? 404 : 200
+      elsif app.request.put?
+        201
+      elsif app.request.delete?
+        204
+      else
+        405
+      end
+      status(code)
+    end
+
+    def set_body(resource)
+      content = if content_type =~ %r{^application/json}
+        if resource.respond_to?(:to_serializable_hash)
+          Yajl::Encoder.encode(resource.to_serializable_hash)
+        else
+          Yajl::Encoder.encode(resource)
+        end
+      elsif content_type =~ %r{^text/plain}
+        resource.to_s
+      else
+        raise "Unsupported content type #{content_type}"
+      end
+      body(content)
     end
 
     included do
@@ -180,6 +169,21 @@ module Astoria
       disable :dump_errors
 
       use(Astoria::OAuth2::BearerTokenMiddleware)
+
+      before do
+        content_type(:json)
+        @t1 = Time.now
+      end
+
+      after do
+        ms = (Time.now - @t1) * 1000
+        logger.debug 'Compute response (%.1fms)' % [ ms ]
+        resource = env['astoria.resource']
+        if resource
+          set_status(resource)
+          set_body(resource)
+        end
+      end
 
       not_found do
         status(404)
