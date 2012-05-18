@@ -26,6 +26,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency('activesupport')
   s.add_runtime_dependency('addressable')
   s.add_runtime_dependency('log_weasel', '>= 0.1.0')
+  s.add_runtime_dependency('mime-types')
   s.add_runtime_dependency('rack-oauth2')
   s.add_runtime_dependency('rack-routes')
   s.add_runtime_dependency('sequel')

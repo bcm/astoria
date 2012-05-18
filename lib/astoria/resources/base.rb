@@ -1,7 +1,8 @@
 require 'astoria/content'
+require 'astoria/providers/entity_provider'
 require 'astoria/resources/oauth2'
 require 'astoria/resources/url_builder'
-require 'yajl'
+require 'mime/types'
 
 module Astoria
   module Resource
@@ -139,23 +140,25 @@ module Astoria
       status(code)
     end
 
-    def set_body(resource)
-      content = if content_type =~ %r{^application/json}
-        if resource.respond_to?(:to_serializable_hash)
-          Yajl::Encoder.encode(resource.to_serializable_hash)
-        else
-          Yajl::Encoder.encode(resource)
-        end
-      elsif content_type =~ %r{^text/plain}
-        resource.to_s
-      else
-        raise "Unsupported content type #{content_type}"
+    attr_reader :media_type
+
+    def content_type(type = nil, params = {})
+      ct = super
+      @media_type = MIME::Types[ct].first if type
+    end
+
+    def write_body(resource)
+      writer = EntityProvider.find_best_match(resource.class, media_type)
+      unless writer
+        mt = media_type
+        content_type(:txt)
+        halt 500, "No matching entity provider for resource of type #{resource.class} and media type #{mt}"
       end
-      body(content)
+      writer.write(resource, media_type, response)
     end
 
     def fail(code, errors)
-      set_body(Astoria::Errors.new(errors))
+      write_body(Astoria::Errors.new(errors))
       halt code
     end
 
@@ -166,29 +169,32 @@ module Astoria
       use(Astoria::OAuth2::BearerTokenMiddleware)
 
       before do
-        content_type(:json)
+        content_type(:json) # XXX: figure out what's acceptable to the request
         @t1 = Time.now
       end
 
       after do
-        ms = (Time.now - @t1) * 1000
-        logger.debug 'Compute response (%.1fms)' % [ ms ]
+        if @t1
+          ms = (Time.now - @t1) * 1000
+          logger.debug 'Compute response (%.1fms)' % [ms]
+        end
         resource = env['astoria.resource']
+        # XXX: if Rack::Response, use its status, headers, body
         if resource
           set_status(resource)
-          set_body(resource)
+          write_body(resource)
         end
       end
 
       not_found do
-        set_body(Astoria::Errors.new('Route not found')) unless body
+        write_body(Astoria::Errors.new('Route not found')) unless body
       end
 
       error do
         error = env['sinatra.error'] || 'Unknown error'
         status(error.respond_to?(:status) ? error.status : 500)
         error.headers.each { |key, val| headers[key] = val } if error.respond_to?(:headers)
-        set_body(error.respond_to?(:resource) ? error.resource : Astoria::Errors.new(error))
+        write_body(error.respond_to?(:resource) ? error.resource : Astoria::Errors.new(error))
         dump_errors!(error) if status == 500
       end
     end
