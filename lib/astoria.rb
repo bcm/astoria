@@ -13,6 +13,8 @@ module Astoria
   autoload :MediaType, 'astoria/providers/media_type'
   autoload :MediaTypes, 'astoria/providers/media_type'
 
+  autoload :Resource, 'astoria/resources/base'
+
   def self.env
     @env ||= Env.new
   end
