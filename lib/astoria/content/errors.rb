@@ -7,7 +7,7 @@ module Astoria
       @errors = errors.is_a?(Exception) ? errors.message : errors
     end
 
-    def to_serializable_hash
+    def to_hash
       super.merge(errors: errors)
     end
   end

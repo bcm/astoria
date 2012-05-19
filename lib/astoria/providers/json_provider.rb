@@ -1,16 +1,22 @@
-require 'mime/types'
 require 'yajl'
 
 module Astoria
   module MediaTypes
-    JSON = MIME::Types['application/json'].first
+    JSON = find('application/json')
   end
 
-  class JsonProvider < EntityProvider(Object, MediaTypes::JSON)
+  class JsonProvider < EntityProvider
+    self.type = Object
+    self.media_type = MediaTypes::JSON
+
+    def writeable?(type, media_type)
+      type.method_defined?(:to_hash)
+    end
+
     def write(obj, media_type, out)
-      # assumes the resource data is in UTF-8
-      data = obj.respond_to?(:to_serializable_hash) ? obj.to_serializable_hash : obj
-      Yajl::Encoder.encode(data) { |chunk| out.write(chunk) }
+      raise "Invalid encoding #{encoding} specified for JSON serialization" unless media_type.utf8?
+      # assumes obj.to_hash returns data in UTF-8
+      Yajl::Encoder.encode(obj.to_hash) { |chunk| out.write(chunk) }
     end
   end
 end

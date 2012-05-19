@@ -3,13 +3,13 @@ module Astoria
     attr_reader :value
 
     def initialize(value, url_builder, options = {})
-      super(url_builder, {id: value.id})
+      super(url_builder, id: value.id)
       @value = value
     end
 
-    def to_serializable_hash
-      data = if value.respond_to?(:to_serializable_hash)
-        value.to_serializable_hash
+    def to_hash
+      data = if value.respond_to?(:to_hash)
+        value.to_hash
       elsif value.respond_to?(:values)
         value.values
       else

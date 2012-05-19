@@ -16,7 +16,7 @@ module Astoria
       @group = defaults.merge(group)
     end
 
-    def to_serializable_hash
+    def to_hash
       super.merge(group)
     end
   end

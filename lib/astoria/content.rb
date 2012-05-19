@@ -16,7 +16,7 @@ module Astoria
       end
     end
 
-    def to_serializable_hash
+    def to_hash
       url_builder ? {_links: links} : {}
     end
   end

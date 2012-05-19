@@ -7,7 +7,7 @@ module Astoria
       @count = count
     end
 
-    def to_serializable_hash
+    def to_hash
       super.merge(count: count)
     end
   end

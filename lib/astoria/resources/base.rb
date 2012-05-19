@@ -1,3 +1,4 @@
+require 'active_support/benchmarkable'
 require 'astoria/content'
 require 'astoria/providers/entity_provider'
 require 'astoria/resources/oauth2'
@@ -6,6 +7,7 @@ require 'mime/types'
 
 module Astoria
   module Resource
+    include ActiveSupport::Benchmarkable
     extend ActiveSupport::Concern
     include Astoria::Logging
     include Astoria::Resources::OAuth2
@@ -72,37 +74,6 @@ module Astoria
       eg
     end
 
-    # Delegates the request to another resource, rewriting the request +PATH_INFO+ so that the subresource only
-    # sees the splatted part.
-    #
-    # In the following example, a request for +/foo/:id/bar/baz+ would be handled by +BarResource.baz+.
-    #
-    #     map('/foo') { run FooResource }
-    #
-    #     class FooResource
-    #       get '/:id/bar/*' do
-    #         subresource BarResource, prefix: "/#{params[:id]}"
-    #       end
-    #     end
-    #
-    #     class BarResource
-    #       get '/:id/baz' do
-    #         "baz! #params[:id]"
-    #       end
-    #     end
-    #
-    # @param [Class] subresource_class
-    # @param [Hash] options
-    # @option options [String] :prefix ('/') a string to prepend to the splatted path
-    def subresource(subresource_class, options = {})
-      prefix = options.fetch(:prefix, '/')
-      splat = params[:splat].first ? "/#{params[:splat].first}" : ''
-      path_info = "#{prefix}#{splat}"
-      script_name = request.script_name + request.path_info.sub(/#{splat}$/, '')
-      subresource_env = env.merge('PATH_INFO' => path_info, 'SCRIPT_NAME' => script_name)
-      subresource_class.call(subresource_env)
-    end
-
     def url_builder
       @url_builder ||= UrlBuilder.new(self.url)
     end
@@ -144,17 +115,29 @@ module Astoria
 
     def content_type(type = nil, params = {})
       ct = super
-      @media_type = MIME::Types[ct].first if type
+      @media_type = MediaType.create(ct) if type
+      ct
     end
 
-    def write_body(resource)
-      writer = EntityProvider.find_best_match(resource.class, media_type)
+    def route_eval(&block)
+      entity = benchmark 'Compute response', level: :debug, &block
+      # XXX: if Rack::Response, use its status, headers, body
+      if entity
+        content_type(:json) unless content_type
+        set_status(entity)
+        write_body(entity)
+      end
+      throw :halt, nil
+    end
+
+    def write_body(entity)
+      writer = EntityProvider.find_best_match(entity.class, media_type)
       unless writer
         mt = media_type
         content_type(:txt)
-        halt 500, "No matching entity provider for resource of type #{resource.class} and media type #{mt}"
+        halt 500, "No matching entity provider for entity of type #{entity.class} and media type #{mt}"
       end
-      writer.write(resource, media_type, response)
+      writer.write(entity, media_type, response)
     end
 
     def fail(code, errors)
@@ -163,28 +146,12 @@ module Astoria
     end
 
     included do
+      cattr_accessor :resource_type, :resource_path, instance_writer: false
+
       disable :show_exceptions
       disable :dump_errors
 
       use(Astoria::OAuth2::BearerTokenMiddleware)
-
-      before do
-        content_type(:json) # XXX: figure out what's acceptable to the request
-        @t1 = Time.now
-      end
-
-      after do
-        if @t1
-          ms = (Time.now - @t1) * 1000
-          logger.debug 'Compute response (%.1fms)' % [ms]
-        end
-        resource = env['astoria.resource']
-        # XXX: if Rack::Response, use its status, headers, body
-        if resource
-          set_status(resource)
-          write_body(resource)
-        end
-      end
 
       not_found do
         write_body(Astoria::Errors.new('Route not found')) unless body
@@ -196,6 +163,30 @@ module Astoria
         error.headers.each { |key, val| headers[key] = val } if error.respond_to?(:headers)
         write_body(error.respond_to?(:resource) ? error.resource : Astoria::Errors.new(error))
         dump_errors!(error) if status == 500
+      end
+    end
+
+    module ClassMethods
+      def resource(type, options = {}, &block)
+        options = options.dup
+        self.resource_type = type
+        self.resource_path = options.delete(:path) || "/#{type}"
+        instance_eval { yield }
+        add_route(self, options)
+      end
+
+      def subresource(type, options = {})
+        options = options.dup
+        resource_type = "#{self.resource_type}/#{type}".to_sym
+        app = "#{resource_type}_resource".camelize.constantize
+        app.resource_type = resource_type
+        path = options.delete(:path) || "/#{type}"
+        app.resource_path = "#{self.resource_path}#{path}"
+        add_route(app, options)
+      end
+
+      def add_route(app, options = {})
+        Astoria.service.routes.draw { resource(app, options) }
       end
     end
   end

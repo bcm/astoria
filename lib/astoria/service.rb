@@ -1,62 +1,85 @@
+require 'active_support/all'
+require 'active_support/dependencies'
 require 'rack/routes'
 
 module Astoria
-  class Service < SimpleDelegator
+  mattr_accessor :service
+  @@service = nil
+
+  class Service
     include Astoria::Logging
 
-    attr_reader :routes
+    attr_reader :routes, :root
+    delegate :call, to: :routes
 
-    def initialize
-      super(Rack::Routes)
+    def initialize(root)
       @routes = Routes.new
+      @root = File.expand_path(root)
     end
 
     def initialize!
       load_initializers
-      load_routes
+      load_resources
+    end
+
+    def self.create(root)
+      Astoria.service = new(root)
     end
 
     protected
       def load_initializers
-        Dir.glob(File.join('.', 'config', 'initializers', '*.rb')).each {|file| require file}
+        Dir.glob(File.join(root, 'config', 'initializers', '*.rb')).each { |file| require file }
       end
 
-      def load_routes
-        require File.join('.', 'config', 'routes.rb')
-      end
-  end
+      def load_resources
+        load_paths = [
+          File.join(root, 'lib'),
+          File.join(root, 'service', 'models'),
+          File.join(root, 'service', 'resources')
+        ]
 
-  class Routes
-    include Astoria::Logging
+        $LOAD_PATH.unshift(*load_paths)
+        ActiveSupport::Dependencies.autoload_paths.unshift(*load_paths)
 
-    def draw(&block)
-      instance_eval(&block)
-    end
-
-    def resource(pattern, klass, options = {})
-      # /events/:slug/games => %r{^/events/(?<slug>[^/]+)/games}
-      regexp = Regexp.new(pattern.gsub(%r{/:([^/]+)}, '/(?<\1>[^/]+)'))
-
-      # XXX: require the resource file - means the resources dir has to be in the load path
-      # require "myapp/resources/#{name}_resource"
-
-      # XXX: allow :foo instead of MyApp::FooResource
-      # klass = "myapp/#{name}_resource".camelize.constantize
-
-      Rack::Routes.location regexp do |env|
-        matchdata = env['routes.location.matchdata']
-
-        env['SCRIPT_NAME'] = matchdata[0]
-        env['PATH_INFO'] = env['PATH_INFO'].sub(env['SCRIPT_NAME'], '')
-
-        if options[:matches]
-          env['astoria.routes.matches'] = HashWithIndifferentAccess.new
-          Array(options[:matches]).each_with_index do |match, i|
-            env['astoria.routes.matches'][match] = matchdata[i+1]
+        # eager load everything
+        load_paths.each do |path|
+          matcher = /\A#{Regexp.escape(path)}\/(.*)\.rb\Z/
+          Dir.glob(File.join(path, '**', '*.rb')).sort.each do |file|
+            require_dependency(file.sub(matcher, '\1'))
           end
         end
+      end
 
-        klass.call(env)
+    class Routes < SimpleDelegator
+      include Astoria::Logging
+
+      def initialize
+        super(Rack::Routes.new)
+      end
+
+      def draw(&block)
+        instance_eval(&block)
+      end
+
+      def resource(app, options = {})
+        # /events/:slug/games => %r{^/events/(?<slug>[^/]+)/games}
+        regexp = Regexp.new(app.resource_path.gsub(%r{/:([^/]+)}, '/(?<\1>[^/]+)'))
+
+        __getobj__.class.location(regexp) do |env|
+          matchdata = env['routes.location.matchdata']
+
+          env['SCRIPT_NAME'] = matchdata[0]
+          env['PATH_INFO'] = env['PATH_INFO'].sub(env['SCRIPT_NAME'], '')
+
+          if options[:matches]
+            env['astoria.routes.matches'] = HashWithIndifferentAccess.new
+            Array(options[:matches]).each_with_index do |match, i|
+              env['astoria.routes.matches'][match] = matchdata[i+1]
+            end
+          end
+
+          app.call(env)
+        end
       end
     end
   end
