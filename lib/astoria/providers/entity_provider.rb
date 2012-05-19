@@ -13,7 +13,7 @@ module Astoria
       self.class.media_type == MediaTypes::ANYTHING ||
         self.class.media_type == media_type ||
           (self.class.media_type.raw_media_type == media_type.raw_media_type &&
-           self.class.media_type.raw_subtype == '*')
+           self.class.media_type.raw_sub_type == '*')
     end
 
     def writeable?(type, media_type)

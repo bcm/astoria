@@ -20,6 +20,7 @@ module Astoria
     def initialize!
       load_initializers
       load_resources
+      build_routing_table
     end
 
     def self.create(root)
@@ -50,6 +51,11 @@ module Astoria
         end
       end
 
+      def build_routing_table
+        ObjectSpace.each_object(Class).select { |klass| klass < Astoria::Resource && klass.name.present? }.
+          each { |resource| routes.add(resource) }
+      end
+
     class Routes < SimpleDelegator
       include Astoria::Logging
 
@@ -57,28 +63,30 @@ module Astoria
         super(Rack::Routes.new)
       end
 
-      def draw(&block)
-        instance_eval(&block)
-      end
-
-      def resource(app, options = {})
+      def add(resource, options = {})
+        path = "/#{resource.root_relative_resource_path}"
         # /events/:slug/games => %r{^/events/(?<slug>[^/]+)/games}
-        regexp = Regexp.new(app.resource_path.gsub(%r{/:([^/]+)}, '/(?<\1>[^/]+)'))
+        regexp = Regexp.new(path.gsub(%r{/:([^/]+)}, '/(?<\1>[^/]+)'))
 
         __getobj__.class.location(regexp) do |env|
           matchdata = env['routes.location.matchdata']
+          logger.debug "matchdata: #{matchdata.inspect}"
 
           env['SCRIPT_NAME'] = matchdata[0]
           env['PATH_INFO'] = env['PATH_INFO'].sub(env['SCRIPT_NAME'], '')
 
-          if options[:matches]
+          logger.debug "script name: #{env['SCRIPT_NAME']}"
+          logger.debug "path info: #{env['PATH_INFO']}"
+
+          matches = resource.route_matches
+          if matches
             env['astoria.routes.matches'] = HashWithIndifferentAccess.new
-            Array(options[:matches]).each_with_index do |match, i|
+            matches.each_with_index do |match, i|
               env['astoria.routes.matches'][match] = matchdata[i+1]
             end
           end
 
-          app.call(env)
+          resource.call(env)
         end
       end
     end

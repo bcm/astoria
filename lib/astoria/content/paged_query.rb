@@ -13,8 +13,8 @@ module Astoria
       @collection = paged_array.map { |value| Entity.new(value, options[:subresource_url_builder]) }
     end
 
-    def to_h
-      super.merge(total: total, collection: collection.map {|value| value.to_h })
+    def to_hash
+      super.merge(total: total, collection: collection.map {|value| value.to_hash })
     end
   end
 end

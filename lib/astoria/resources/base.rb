@@ -12,10 +12,7 @@ module Astoria
     include Astoria::Logging
     include Astoria::Resources::OAuth2
 
-    # Returns any grouped query ids that were provided in the named request parameter as a semicolon-delimited list
-    # of integers.
-    #
-    # If any of the values in the list is not a positive integer, the request is halted with a 400 response.
+    # If any of the values in the list is not a positive integer, the request  with a 400 response.
     #
     # @param param_name the request parameter name
     # @return [Array]
@@ -25,7 +22,7 @@ module Astoria
           begin
             m << Integer(v)
           rescue ArgumentError
-            fail 400, {param_name => "Bad query id value #{v}"}
+            fail(400, {param_name => "Bad query id value #{v}"})
           end
         end
       end
@@ -79,23 +76,36 @@ module Astoria
     end
 
     def count_query(count, options = {})
-      set_resource(Astoria::CountQuery.new(count, url_builder, options))
+      Astoria::CountQuery.new(count, url_builder, options)
     end
 
     def entity(ent, options = {})
-      set_resource(Astoria::Entity.new(ent, url_builder, options))
+      Astoria::Entity.new(ent, url_builder, options) if ent
     end
 
     def grouped_query(ids, group, options = {})
-      set_resource(Astoria::GroupedQuery.new(ids, group, url_builder, options))
+      Astoria::GroupedQuery.new(ids, group, url_builder, options)
     end
 
     def paged_query(paged_array, options = {})
-      set_resource(Astoria::PagedQuery.new(paged_array, url_builder, options))
+      Astoria::PagedQuery.new(paged_array, url_builder, options)
     end
 
-    def set_resource(resource)
-      env['astoria.resource'] = resource
+    def route_eval(&block)
+      entity = benchmark 'Compute response', level: :debug, &block
+      # XXX: if Rack::Response, use its status, headers, body
+      content_type(:json) unless content_type
+      set_status(entity)
+      write_body(entity) if entity
+      throw :halt, nil
+    end
+
+    attr_reader :media_type
+
+    def content_type(type = nil, params = {})
+      ct = super
+      @media_type = MediaType.create(ct) if type
+      ct
     end
 
     def set_status(resource)
@@ -111,42 +121,23 @@ module Astoria
       status(code)
     end
 
-    attr_reader :media_type
-
-    def content_type(type = nil, params = {})
-      ct = super
-      @media_type = MediaType.create(ct) if type
-      ct
-    end
-
-    def route_eval(&block)
-      entity = benchmark 'Compute response', level: :debug, &block
-      # XXX: if Rack::Response, use its status, headers, body
-      if entity
-        content_type(:json) unless content_type
-        set_status(entity)
-        write_body(entity)
-      end
-      throw :halt, nil
-    end
-
     def write_body(entity)
       writer = EntityProvider.find_best_match(entity.class, media_type)
       unless writer
         mt = media_type
         content_type(:txt)
-        halt 500, "No matching entity provider for entity of type #{entity.class} and media type #{mt}"
+        fail(500, "No matching entity provider for entity of type #{entity.class} and media type #{mt}")
       end
       writer.write(entity, media_type, response)
     end
 
-    def fail(code, errors)
-      write_body(Astoria::Errors.new(errors))
-      halt code
+    def fail(code, errors = nil)
+      env['astoria.error'] = errors if errors
+      halt(code)
     end
 
     included do
-      cattr_accessor :resource_type, :resource_path, instance_writer: false
+      cattr_accessor :resource_parent, :resource_path, instance_writer: false
 
       disable :show_exceptions
       disable :dump_errors
@@ -154,11 +145,16 @@ module Astoria
       use(Astoria::OAuth2::BearerTokenMiddleware)
 
       not_found do
-        write_body(Astoria::Errors.new('Route not found')) unless body
+        error = env['astoria.error'] || 'Route not found'
+        content_type(:json)
+        error.headers.each { |key, val| headers[key] = val } if error.respond_to?(:headers)
+        response.body = ''
+        write_body(error.respond_to?(:resource) ? error.resource : Astoria::Errors.new(error))
       end
 
       error do
-        error = env['sinatra.error'] || 'Unknown error'
+        error = env['sinatra.error'] || env['astoria.error'] || 'Unknown error'
+        content_type(:json)
         status(error.respond_to?(:status) ? error.status : 500)
         error.headers.each { |key, val| headers[key] = val } if error.respond_to?(:headers)
         write_body(error.respond_to?(:resource) ? error.resource : Astoria::Errors.new(error))
@@ -167,26 +163,31 @@ module Astoria
     end
 
     module ClassMethods
-      def resource(type, options = {}, &block)
-        options = options.dup
-        self.resource_type = type
-        self.resource_path = options.delete(:path) || "/#{type}"
-        instance_eval { yield }
-        add_route(self, options)
+      def resource(path)
+        self.resource_path = path
       end
 
-      def subresource(type, options = {})
-        options = options.dup
-        resource_type = "#{self.resource_type}/#{type}".to_sym
-        app = "#{resource_type}_resource".camelize.constantize
-        app.resource_type = resource_type
-        path = options.delete(:path) || "/#{type}"
-        app.resource_path = "#{self.resource_path}#{path}"
-        add_route(app, options)
+      def subresource(path, &block)
+        resource = yield
+        resource.constantize unless resource.is_a?(Class)
+        resource.resource_path = path
+        resource.resource_parent = self
       end
 
-      def add_route(app, options = {})
-        Astoria.service.routes.draw { resource(app, options) }
+      def ancestor_resource_path
+        if resource_parent
+          [resource_parent.ancestor_resource_path, resource_path].compact.join('/')
+        else
+          resource_path
+        end
+      end
+
+      def root_relative_resource_path
+        ancestor_resource_path
+      end
+
+      def route_matches
+        []
       end
     end
   end
