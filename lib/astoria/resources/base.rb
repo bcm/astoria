@@ -45,7 +45,7 @@ module Astoria
     #
     # @return [Array]
     def attribute_filtering_params
-      params[:attr] ? params[:attr].map(&:to_sym) : nil
+      params[:attr] ? Array(params[:attr]).map(&:to_sym) : nil
     end
 
     # Returns the options relevant to paged queries that were provided as request parameters.
@@ -64,7 +64,7 @@ module Astoria
     #
     # @see #attribute_filtering_params
     # @return [Hash]
-    def entity_get_params
+    def entity_query_params
       eg = {}
       af = attribute_filtering_params
       eg[:attr] = af if af
@@ -83,9 +83,11 @@ module Astoria
       Astoria::CountQuery.new(count, url_builder, options)
     end
 
-    def entity(ent, options = {})
+    def entity_query(options = {}, &block)
+      qp = entity_query_params
+      ent = yield(qp)
       if ent
-        options = options.dup
+        options = options.merge(query_params: qp)
         klass = options.delete(:type) || Astoria::Entity
         klass.new(ent, url_builder, options)
       end
@@ -95,8 +97,9 @@ module Astoria
       Astoria::GroupedQuery.new(ids, group, url_builder, options)
     end
 
-    def paged_query(paged_array, options = {})
-      Astoria::PagedQuery.new(paged_array, url_builder, options)
+    def paged_query(options = {}, &block)
+      qp = paged_query_params
+      Astoria::PagedQuery.new(yield(qp), url_builder, options.merge(query_params: qp))
     end
 
     def route_eval(&block)

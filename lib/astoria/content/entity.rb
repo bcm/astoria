@@ -3,7 +3,7 @@ module Astoria
     attr_reader :value
 
     def initialize(value, url_builder, options = {})
-      super(url_builder, id: value.id)
+      super(url_builder, options.merge(self_params: {id: value.id}))
       @value = value
     end
 
@@ -15,6 +15,7 @@ module Astoria
       else
         value
       end
+      data = data.keep_if { |key, value| key.in?(query_params[:attr]) } if query_params.key?(:attr)
       super.merge(data)
     end
   end

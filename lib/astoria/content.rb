@@ -1,13 +1,17 @@
 module Astoria
   class Content
-    attr_reader :url_builder, :links
+    include Astoria::Logging
 
-    def initialize(url_builder = nil, params = {})
+    attr_reader :url_builder, :query_params, :links
+
+    def initialize(url_builder = nil, options = {})
       @url_builder = url_builder
-      if url_builder
-        @links = {}
-        @links[:self] = url_builder.build(params)
-      end
+      @query_params = options.fetch(:query_params, {})
+      @links = {self: url_builder.build(options.fetch(:self_params, {}))} if url_builder
+    end
+
+    def root_url_builder
+      url_builder.root if url_builder
     end
 
     def to_hash
