@@ -71,10 +71,6 @@ module Astoria
       eg
     end
 
-    def subresource_capture
-      env['astoria.subresource.capture']
-    end
-
     def url_builder
       @url_builder ||= UrlBuilder.new(self.url, root: url_builder_root)
     end
@@ -105,7 +101,6 @@ module Astoria
 
     def route_eval(&block)
       entity = benchmark 'Compute response', level: :debug, &block
-      throw :halt, entity if env['astoria.subresource.response']
       # XXX: if Rack::Response, use its status, headers, body
       content_type(:json) unless content_type
       set_status(entity)
@@ -184,34 +179,8 @@ module Astoria
         resource_path
       end
 
-      def subresource(path, options = {}, &block)
-        absolute_path = "/#{path}"
-        resource = yield
-        resource.constantize unless resource.is_a?(Class)
-        [:get, :put, :post, :delete, :head, :options, :patch].each do |method|
-          [absolute_path, "#{absolute_path}/*"].each do |p|
-            send(method, p, options) do
-              path_info = params[:splat] && params[:splat].first ? "/#{params[:splat].first}" : ''
-              script_name = request.script_name + request.path_info.sub(/#{path_info}$/, '')
-              subresource_env = env.merge('PATH_INFO' => path_info, 'SCRIPT_NAME' => script_name)
-              capture_name = path.sub(/^:/, '')
-              subresource_env['astoria.subresource.capture']= params[capture_name] if params.key?(capture_name)
-              env['astoria.subresource.response'] = resource.call(subresource_env)
-            end
-          end
-        end
-      end
-
       def route_matches
         []
-      end
-
-      def resource?
-        resource_path.present?
-      end
-
-      def subresource?
-        not resource?
       end
     end
   end

@@ -54,7 +54,7 @@ module Astoria
 
       def build_routing_table
         ObjectSpace.each_object(Class).
-          select { |klass| klass < Astoria::Resource && klass.name.present? && klass.resource? }.
+          select { |klass| klass < Astoria::Resource && klass.name.present? }.
           each { |resource| routes.add(resource) }
       end
 
