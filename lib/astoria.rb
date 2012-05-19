@@ -12,4 +12,25 @@ module Astoria
 
   autoload :MediaType, 'astoria/providers/media_type'
   autoload :MediaTypes, 'astoria/providers/media_type'
+
+  def self.env
+    @env ||= Env.new
+  end
+
+  class Env
+    attr_reader :env
+
+    def initialize
+      @env = (ENV['RACK_ENV'] || :development).to_sym
+    end
+
+    def method_missing(meth, *args)
+      meth = meth.to_s
+      if meth.end_with?('?')
+        env.to_s == meth.chop
+      else
+        super
+      end
+    end
+  end
 end
