@@ -3,17 +3,24 @@ require 'addressable/uri'
 
 module Astoria
   class UrlBuilder
-    def initialize(base)
+    def initialize(base, options = {})
       @base = if base.is_a?(Addressable::URI)
         base
       else
         Addressable::URI.parse(base.sub(/\/$/, ''))
       end
       @template = Addressable::Template.new(@base)
+      @root = options.fetch(:root, '')
     end
 
     def build(mapping = {})
       @template.expand(mapping.stringify_keys).to_str
+    end
+
+    def root
+      uri = @base.dup
+      uri.path = @root
+      self.class.new(uri)
     end
 
     def path(path)

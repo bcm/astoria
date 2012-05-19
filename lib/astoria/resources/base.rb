@@ -71,8 +71,16 @@ module Astoria
       eg
     end
 
+    def subresource_capture
+      env['astoria.subresource.capture']
+    end
+
     def url_builder
-      @url_builder ||= UrlBuilder.new(self.url)
+      @url_builder ||= UrlBuilder.new(self.url, root: url_builder_root)
+    end
+
+    def url_builder_root
+      ''
     end
 
     def count_query(count, options = {})
@@ -80,7 +88,11 @@ module Astoria
     end
 
     def entity(ent, options = {})
-      Astoria::Entity.new(ent, url_builder, options) if ent
+      if ent
+        options = options.dup
+        klass = options.delete(:type) || Astoria::Entity
+        klass.new(ent, url_builder, options)
+      end
     end
 
     def grouped_query(ids, group, options = {})
@@ -93,6 +105,7 @@ module Astoria
 
     def route_eval(&block)
       entity = benchmark 'Compute response', level: :debug, &block
+      throw :halt, entity if env['astoria.subresource.response']
       # XXX: if Rack::Response, use its status, headers, body
       content_type(:json) unless content_type
       set_status(entity)
@@ -137,7 +150,7 @@ module Astoria
     end
 
     included do
-      cattr_accessor :resource_parent, :resource_path, instance_writer: false
+      cattr_accessor :resource_path, instance_writer: false
 
       disable :show_exceptions
       disable :dump_errors
@@ -167,27 +180,38 @@ module Astoria
         self.resource_path = path
       end
 
-      def subresource(path, &block)
+      def root_relative_resource_path
+        resource_path
+      end
+
+      def subresource(path, options = {}, &block)
+        absolute_path = "/#{path}"
         resource = yield
         resource.constantize unless resource.is_a?(Class)
-        resource.resource_path = path
-        resource.resource_parent = self
-      end
-
-      def ancestor_resource_path
-        if resource_parent
-          [resource_parent.ancestor_resource_path, resource_path].compact.join('/')
-        else
-          resource_path
+        [:get, :put, :post, :delete, :head, :options, :patch].each do |method|
+          [absolute_path, "#{absolute_path}/*"].each do |p|
+            send(method, p, options) do
+              path_info = params[:splat] && params[:splat].first ? "/#{params[:splat].first}" : ''
+              script_name = request.script_name + request.path_info.sub(/#{path_info}$/, '')
+              subresource_env = env.merge('PATH_INFO' => path_info, 'SCRIPT_NAME' => script_name)
+              capture_name = path.sub(/^:/, '')
+              subresource_env['astoria.subresource.capture']= params[capture_name] if params.key?(capture_name)
+              env['astoria.subresource.response'] = resource.call(subresource_env)
+            end
+          end
         end
-      end
-
-      def root_relative_resource_path
-        ancestor_resource_path
       end
 
       def route_matches
         []
+      end
+
+      def resource?
+        resource_path.present?
+      end
+
+      def subresource?
+        not resource?
       end
     end
   end

@@ -10,7 +10,10 @@ module Astoria
       links[:first] = page_url_builder.build(page: 1) unless paged_array.first_page?
       links[:last] = page_url_builder.build(page: paged_array.page_count) unless paged_array.last_page?
       @total = paged_array.pagination_record_count
-      @collection = paged_array.map { |value| Entity.new(value, options[:subresource_url_builder]) }
+      options = options.dup
+      klass = options.delete(:type) || Entity
+      subresource_url_builder = options.delete(:subresource_url_builder)
+      @collection = paged_array.map { |value| klass.new(value, subresource_url_builder, options) }
     end
 
     def to_hash

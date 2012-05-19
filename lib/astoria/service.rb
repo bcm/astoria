@@ -35,6 +35,7 @@ module Astoria
       def load_resources
         load_paths = [
           File.join(root, 'lib'),
+          File.join(root, 'service', 'entities'),
           File.join(root, 'service', 'models'),
           File.join(root, 'service', 'resources')
         ]
@@ -52,7 +53,8 @@ module Astoria
       end
 
       def build_routing_table
-        ObjectSpace.each_object(Class).select { |klass| klass < Astoria::Resource && klass.name.present? }.
+        ObjectSpace.each_object(Class).
+          select { |klass| klass < Astoria::Resource && klass.name.present? && klass.resource? }.
           each { |resource| routes.add(resource) }
       end
 
@@ -70,13 +72,9 @@ module Astoria
 
         __getobj__.class.location(regexp) do |env|
           matchdata = env['routes.location.matchdata']
-          logger.debug "matchdata: #{matchdata.inspect}"
 
           env['SCRIPT_NAME'] = matchdata[0]
           env['PATH_INFO'] = env['PATH_INFO'].sub(env['SCRIPT_NAME'], '')
-
-          logger.debug "script name: #{env['SCRIPT_NAME']}"
-          logger.debug "path info: #{env['PATH_INFO']}"
 
           matches = resource.route_matches
           if matches

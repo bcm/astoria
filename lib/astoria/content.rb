@@ -1,10 +1,4 @@
 module Astoria
-  autoload :CountQuery, 'astoria/content/count_query'
-  autoload :Entity, 'astoria/content/entity'
-  autoload :Errors, 'astoria/content/errors'
-  autoload :GroupedQuery, 'astoria/content/grouped_query'
-  autoload :PagedQuery, 'astoria/content/paged_query'
-
   class Content
     attr_reader :url_builder, :links
 
