@@ -7,7 +7,9 @@ module Astoria
       @base = if base.is_a?(Addressable::URI)
         base
       else
-        Addressable::URI.parse(base.sub(/\/$/, ''))
+        uri = Addressable::URI.parse(base.sub(/\/$/, ''))
+        uri.query = options[:query] if options[:query]
+        uri
       end
       @template = Addressable::Template.new(@base)
       @root = options.fetch(:root, '')

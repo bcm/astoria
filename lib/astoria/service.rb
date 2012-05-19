@@ -55,7 +55,9 @@ module Astoria
       def build_routing_table
         ObjectSpace.each_object(Class).
           select { |klass| klass < Astoria::Resource && klass.name.present? }.
-          each { |resource| routes.add(resource) }
+          map { |resource| [resource, resource.root_relative_resource_path] }.
+          sort_by { |it| -it.last.length }.
+          each { |it| routes.add(it.first) }
       end
 
     class Routes < SimpleDelegator
@@ -70,6 +72,8 @@ module Astoria
         # /events/:slug/games => %r{^/events/(?<slug>[^/]+)/games}
         regexp = Regexp.new(path.gsub(%r{/:([^/]+)}, '/(?<\1>[^/]+)'))
 
+#        logger.debug "adding route at #{path} for #{resource}"
+
         __getobj__.class.location(regexp) do |env|
           matchdata = env['routes.location.matchdata']
 
@@ -83,6 +87,8 @@ module Astoria
               env['astoria.routes.matches'][match] = matchdata[i+1]
             end
           end
+
+#          logger.debug "Calling resource #{resource}"
 
           resource.call(env)
         end

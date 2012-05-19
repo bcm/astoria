@@ -3,7 +3,10 @@ module Astoria
     attr_reader :value
 
     def initialize(value, url_builder, options = {})
-      super(url_builder, options.merge(self_params: {id: value.id}))
+      options = options.dup
+      options[:mapping] ||= {}
+      options[:mapping][:id] = value.id
+      super(url_builder, options)
       @value = value
     end
 

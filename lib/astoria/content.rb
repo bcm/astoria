@@ -2,12 +2,13 @@ module Astoria
   class Content
     include Astoria::Logging
 
-    attr_reader :url_builder, :query_params, :links
+    attr_reader :url_builder, :query_params, :mapping, :links
 
     def initialize(url_builder = nil, options = {})
       @url_builder = url_builder
       @query_params = options.fetch(:query_params, {})
-      @links = {self: url_builder.build(options.fetch(:self_params, {}))} if url_builder
+      @mapping = options.fetch(:mapping, {})
+      @links = {self: url_builder.build(mapping)} if url_builder
     end
 
     def root_url_builder

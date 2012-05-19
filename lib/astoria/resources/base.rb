@@ -72,7 +72,7 @@ module Astoria
     end
 
     def url_builder
-      @url_builder ||= UrlBuilder.new(self.url, root: url_builder_root)
+      @url_builder ||= UrlBuilder.new(self.url, query: request.query_string, root: url_builder_root)
     end
 
     def url_builder_root
@@ -175,7 +175,7 @@ module Astoria
 
     module ClassMethods
       def resource(path)
-        self.resource_path = path
+        self.resource_path = path if path.present?
       end
 
       def root_relative_resource_path
