@@ -13,14 +13,18 @@ module Astoria
       @root = options.fetch(:root, '')
     end
 
+    def root_path
+      @root
+    end
+
     def build(mapping = {})
       @template.expand(mapping.stringify_keys).to_str
     end
 
     def root
       uri = @base.dup
-      uri.path = @root
-      self.class.new(uri)
+      uri.path = root_path
+      self.class.new(uri, root: root_path)
     end
 
     def path(path)
@@ -30,14 +34,14 @@ module Astoria
     def segment(segment)
       uri = @base.dup
       uri.path = [uri.path, segment].join('/') if segment.present?
-      self.class.new(uri)
+      self.class.new(uri, root: root_path)
     end
 
     def param(key)
       uri = @base.dup
       uri.query_values = (uri.query_values || {}).merge(key => "{#{key}}")
       uri.query = uri.query.gsub('%7B', '{').gsub('%7D', '}')
-      self.class.new(uri)
+      self.class.new(uri, root: root_path)
     end
   end
 end
