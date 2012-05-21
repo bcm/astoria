@@ -45,6 +45,10 @@ module Astoria
             attr_accessor :column_mapping, :attribute_mapping, :required_columns
           end
 
+          self.column_mapping = {}
+          self.attribute_mapping = {}
+          self.required_columns = []
+
           dataset_module AttributeNarrowing
           dataset_module Pagination
         end
