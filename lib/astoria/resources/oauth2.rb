@@ -10,8 +10,8 @@ module Astoria
       def require_oauth_token(options = {}, &block)
         token = request.env[Rack::OAuth2::Server::Resource::ACCESS_TOKEN]
         unauthorized! unless token.present?
-        @token = yield(token)
-        invalid_token! unless @token.present?
+        @current_token = yield(token)
+        invalid_token! unless current_token.present?
       end
 
       included do
