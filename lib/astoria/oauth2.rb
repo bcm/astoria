@@ -56,7 +56,7 @@ module Astoria
       include Rack::OAuth2::Server::Resource::ErrorMethods
       include Rack::OAuth2::Server::Resource::Bearer::ErrorMethods
 
-      def unauthorized!(error = nil, description = nil, options = {})
+      def unauthorized!(error = :forbidden, description = nil, options = {})
         raise Unauthorized.new(error, description, options)
       end
     end

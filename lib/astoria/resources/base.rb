@@ -168,8 +168,11 @@ module Astoria
         content_type(:json)
         status(error.respond_to?(:status) ? error.status : 500)
         error.headers.each { |key, val| headers[key] = val } if error.respond_to?(:headers)
-        write_body(error.respond_to?(:resource) ? error.resource : Astoria::Errors.new(error))
+        resource = error.resource if error.respond_to?(:resource)
+        resource ||= Astoria::Errors.new(error)
+        write_body(resource)
         dump_errors!(error) if status == 500
+        nil
       end
     end
 
