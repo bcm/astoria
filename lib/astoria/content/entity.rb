@@ -10,7 +10,7 @@ module Astoria
       @value = value
     end
 
-    def to_hash
+    def to_hash(options = {})
       data = if value.respond_to?(:to_hash)
         value.to_hash
       elsif value.respond_to?(:values)
@@ -19,7 +19,7 @@ module Astoria
         value
       end
       data = data.keep_if { |key, value| key.in?(query_params[:attr]) } if query_params.key?(:attr)
-      super.merge(data)
+      super(options).merge(data)
     end
   end
 end
