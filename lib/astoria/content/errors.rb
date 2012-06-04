@@ -4,7 +4,15 @@ module Astoria
 
     def initialize(errors)
       super(nil)
-      @errors = errors.is_a?(Exception) ? errors.message : errors
+      @errors = if errors.is_a?(Exception)
+        if Astoria.env.development?
+          errors.message
+        else
+          "An unknown error occurred"
+        end
+      else
+        errors
+      end
     end
 
     def to_hash
