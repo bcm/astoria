@@ -182,7 +182,7 @@ module Astoria
       end
 
       def root_relative_resource_path
-        resource_path
+        resource_path.blank?? '/' : resource_path
       end
 
       def route_matches

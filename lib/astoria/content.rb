@@ -9,7 +9,7 @@ module Astoria
       @query_params = options.fetch(:query_params, {})
       @mapping = options.fetch(:mapping, {})
       @links = []
-      add_link(url_builder.build(mapping), :self) if url_builder
+      add_self_relative_link(:self) if url_builder
     end
 
     def add_link(href, rel, options = {})
@@ -40,7 +40,7 @@ module Astoria
       links_by_rel = links.group_by(&:rel)
       if links_by_rel.any?
         rel_whitelist = Array.wrap(options.fetch(:links, {}).fetch(:rels, []))
-        data[:links] = links_by_rel.each_with_object({}) do |(rel, ls), m|
+        data[:_links] = links_by_rel.each_with_object({}) do |(rel, ls), m|
           if rel_whitelist.empty? || rel.in?(rel_whitelist)
             if ls.count > 1
               m[rel] = ls.map { |l| l.to_s }

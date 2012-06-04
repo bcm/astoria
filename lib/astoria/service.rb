@@ -68,7 +68,8 @@ module Astoria
       end
 
       def add(resource, options = {})
-        path = "/#{resource.root_relative_resource_path}"
+        path = "#{resource.root_relative_resource_path}"
+        path = "/#{path}" unless path == '/'
         # /events/:slug/games => %r{^/events/(?<slug>[^/]+)/games}
         regexp = Regexp.new(path.gsub(%r{/:([^/]+)}, '/(?<\1>[^/]+)'))
 
@@ -88,7 +89,7 @@ module Astoria
             end
           end
 
-#          logger.debug "Calling resource #{resource}"
+#          logger.debug "Calling resource #{resource} for path #{env['SCRIPT_NAME']}"
 
           resource.call(env)
         end
