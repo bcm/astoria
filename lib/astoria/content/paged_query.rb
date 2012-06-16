@@ -12,8 +12,15 @@ module Astoria
       @total = paged_array.pagination_record_count
       options = options.dup
       klass = options.delete(:type) || Entity
-      entity_url_builder = url_builder.path('{id}')
-      @collection = paged_array.map { |value| klass.new(value, entity_url_builder, options.merge(mapping: mapping)) }
+      entity_url_builder = options.delete(:entity_url_builder) || url_builder.path('{id}')
+      entity_url_mapping = options.delete(:entity_url_mapping) || {}
+      @collection = paged_array.map do |value|
+        entity_mapping = entity_url_mapping.each_with_object(mapping) do |(key, attribute), m|
+          attribute = attribute.to_sym
+          m[key] = value.send(attribute) if value.respond_to?(attribute)
+        end
+        klass.new(value, entity_url_builder, options.merge(mapping: entity_mapping))
+      end
     end
 
     def to_hash
