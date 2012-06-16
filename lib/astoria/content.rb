@@ -9,7 +9,6 @@ module Astoria
       @query_params = options.fetch(:query_params, {})
       @mapping = options.fetch(:mapping, {})
       @links = []
-      add_self_relative_link(:self) if url_builder
     end
 
     def add_link(href, rel, options = {})
