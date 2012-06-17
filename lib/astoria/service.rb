@@ -63,13 +63,21 @@ module Astoria
     class Routes < SimpleDelegator
       include Astoria::Logging
 
+      attr_accessor :relative_url_root
+
       def initialize
         super(Rack::Routes.new)
+        @relative_url_root = ''
       end
 
       def add(resource, options = {})
         path = "#{resource.root_relative_resource_path}"
-        path = "/#{path}" unless path == '/'
+        if path == '/'
+          path = "#{relative_url_root}" if relative_url_root.present?
+        else
+          path = "#{relative_url_root}/#{path}"
+        end
+
         # /events/:slug/games => %r{^/events/(?<slug>[^/]+)/games}
         regexp = Regexp.new(path.gsub(%r{/:([^/]+)}, '/(?<\1>[^/]+)'))
 
