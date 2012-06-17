@@ -13,6 +13,13 @@ module Astoria
       end
       @template = Addressable::Template.new(@base)
       @root = options.fetch(:root, '')
+      if @root == '/' || @root.blank?
+        if Astoria.service.routes.relative_url_root.present?
+          @root = "#{Astoria.service.routes.relative_url_root}"
+        end
+      else
+        @root = "#{Astoria.service.routes.relative_url_root}/#{@root}"
+      end
     end
 
     def root_path
