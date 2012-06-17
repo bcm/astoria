@@ -88,6 +88,7 @@ module Astoria
       qp = entity_query_params
       ent = yield(qp)
       if ent
+        etag(ent.etag) if ent.respond_to?(:etag) and ent.etag.present?
         options = options.merge(query_params: qp)
         klass = options.delete(:type) || Astoria::Entity
         klass.new(ent, url_builder, options)
