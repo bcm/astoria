@@ -72,7 +72,8 @@ module Astoria
     end
 
     def url_builder
-      @url_builder ||= UrlBuilder.new(self.url, query: request.query_string, root: url_builder_root)
+      query = "access_token=#{params[:access_token]}" if params[:access_token].present?
+      @url_builder ||= UrlBuilder.new(self.url, query: query, root: url_builder_root)
     end
 
     def url_builder_root
@@ -99,7 +100,8 @@ module Astoria
 
     def paged_query(options = {}, &block)
       qp = paged_query_params
-      Astoria::PagedQuery.new(yield(qp), url_builder, options.merge(query_params: qp))
+      options = options.merge(query_params: qp)
+      Astoria::PagedQuery.new(yield(qp), url_builder, options)
     end
 
     def route_eval(&block)
