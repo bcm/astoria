@@ -10,7 +10,6 @@ module Astoria
     include Astoria::Logging
 
     attr_reader :routes, :root
-    delegate :call, to: :routes
 
     def initialize(root)
       @routes = Routes.new
@@ -23,8 +22,25 @@ module Astoria
       build_routing_table
     end
 
+    def call(env)
+      if env["HTTP_USER_AGENT"].blank?
+        self.class.error_response(400, "User-Agent not provided")
+      else
+        @routes.call(env)
+      end
+    end
+
     def self.create(root)
       Astoria.service = new(root)
+    end
+
+    def self.error_response(status, content)
+      response = Rack::Response.new
+      response.status = status
+      media_type = Astoria::MediaTypes::JSON
+      response['Content-Type'] = media_type.to_s
+      Astoria::JsonProvider.new.write(Astoria::Errors.new(content), media_type, response)
+      response
     end
 
     protected

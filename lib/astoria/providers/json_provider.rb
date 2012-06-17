@@ -2,7 +2,7 @@ require 'yajl'
 
 module Astoria
   module MediaTypes
-    JSON = find('application/json')
+    JSON = MediaType.create('application/json;charset=utf-8')
   end
 
   class JsonProvider < EntityProvider
@@ -14,7 +14,9 @@ module Astoria
     end
 
     def write(obj, media_type, out)
-      raise "Invalid encoding #{encoding} specified for JSON serialization" unless media_type.utf8?
+      unless media_type.respond_to?(:utf8?) && media_type.utf8?
+        raise "Invalid encoding #{media_type.encoding} specified for JSON serialization"
+      end
       # assumes obj.to_hash returns data in UTF-8
       Yajl::Encoder.encode(obj.to_hash) { |chunk| out.write(chunk) }
     end

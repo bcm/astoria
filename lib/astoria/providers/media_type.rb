@@ -21,6 +21,15 @@ module Astoria
       encoding == Encoding.find("UTF-8")
     end
 
+    def to_s
+      ct = super
+      if params.any?
+        ct << ';'
+        ct << params.map { |(key, val)| "#{key}=#{val}" }.join(',')
+      end
+      ct
+    end
+
     def self.create(str)
       type, p = str.split(';')
       params = HashWithIndifferentAccess[p.strip.split(',').map { |pair| pair.strip.split('=') }]
