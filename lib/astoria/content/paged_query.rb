@@ -4,6 +4,7 @@ module Astoria
 
     def initialize(paged_array, url_builder, options = {})
       super(url_builder)
+      add_self_relative_link(:self)
       page_url_builder = url_builder.param(:page)
       add_link(page_url_builder.build(mapping.merge(page: paged_array.next_page)), :next) if paged_array.next_page
       add_link(page_url_builder.build(mapping.merge(page: paged_array.prev_page)), :prev) if paged_array.prev_page
