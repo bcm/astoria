@@ -41,11 +41,7 @@ module Astoria
         rel_whitelist = Array.wrap(options.fetch(:links, {}).fetch(:rels, []))
         data[:_links] = links_by_rel.each_with_object({}) do |(rel, ls), m|
           if rel_whitelist.empty? || rel.in?(rel_whitelist)
-            if ls.count > 1
-              m[rel] = ls.map { |l| l.to_s }
-            elsif ls.any?
-              m[rel] = ls.first.to_s
-            end
+            m[rel] = ls.map { |l| l.to_s }
           end
         end
       end
